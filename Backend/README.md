@@ -84,3 +84,89 @@ See implementation files:
 - [Backend/routes/user.routes.js](Backend/routes/user.routes.js)
 - [Backend/controllers/user.controller.js](Backend/controllers/user.controller.js)
 - [Backend/models/user.model.js](Backend/models/user.model.js)
+
+---
+
+## POST /users/login
+
+Description:
+- Authenticate a user with email and password. Validates input, compares the provided password with the stored hashed password, and returns a JWT token plus the authenticated user if credentials are valid.
+
+Request:
+- Method: `POST`
+- URL: `/users/login`
+- Content-Type: `application/json`
+
+Body (JSON):
+- `email` (string, required) — must be a valid email
+- `password` (string, required) — minimum 6 characters
+
+Example Request Body:
+
+```json
+{
+  "email": "jane.doe@example.com",
+  "password": "secret123"
+}
+```
+
+### Example Response
+
+- `user` (object):
+  - `fullname` (object):
+    - `firstname` (string): User's first name.
+    - `lastname` (string): User's last name.
+  - `email` (string): User's email address.
+  - `socketId` (string or null): User's socket ID if available.
+- `token` (string): JWT Token for authenticated requests
+
+Validation rules (as implemented in `routes/user.routes.js`):
+- `email` — `isEmail()`
+- `password` — `isLength({ min: 6 })`
+
+Responses:
+- `200 OK` — Login successful. Returns JSON `{ token, user }` where `token` is a JWT and `user` is the authenticated user object (password field is not included).
+- `400 Bad Request` — Validation failed. Returns `{ errors: [...] }` from `express-validator`.
+- `401 Unauthorized` — Invalid email or password. User not found or password does not match.
+- `500 Internal Server Error` — Unexpected server error.
+
+Example Responses:
+
+Success (200 OK):
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "_id": "60c72b2f9b1e8e5f6c8f9d7a",
+    "fullname": { "firstname": "Jane", "lastname": "Doe" },
+    "email": "jane.doe@example.com",
+    "socketId": null
+  }
+}
+```
+
+Validation Error (400 Bad Request):
+
+```json
+{
+  "errors": [
+    { "msg": "Invalid Email", "param": "email", "location": "body" },
+    { "msg": "Password must be at least 6 characters long", "param": "password", "location": "body" }
+  ]
+}
+```
+
+Authentication Error (401 Unauthorized):
+
+```json
+{
+  "message": "Invalid email or password"
+}
+```
+
+Notes:
+- Passwords are compared using `user.comparePassword()` which uses `bcrypt` to securely verify the provided password against the stored hash.
+- A JWT is generated with `user.generateAuthToken()`; ensure `JWT_SECRET` is set in environment variables.
+- The password field is never returned in the response, even though it's retrieved from the database with `.select("+password")` for comparison.
+- Both invalid email and incorrect password return the same generic error message for security reasons.
