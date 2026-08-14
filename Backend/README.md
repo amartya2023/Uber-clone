@@ -170,3 +170,112 @@ Notes:
 - A JWT is generated with `user.generateAuthToken()`; ensure `JWT_SECRET` is set in environment variables.
 - The password field is never returned in the response, even though it's retrieved from the database with `.select("+password")` for comparison.
 - Both invalid email and incorrect password return the same generic error message for security reasons.
+
+---
+
+## GET /users/profile
+
+Description:
+- Retrieve the authenticated user's profile. Requires a valid JWT token for authentication.
+
+Request:
+- Method: `GET`
+- URL: `/users/profile`
+- Headers:
+  - `Authorization: Bearer <token>` (or cookie with `token`)
+
+### Example Response
+
+- `_id` (string): User's unique MongoDB ID.
+- `fullname` (object):
+  - `firstname` (string): User's first name.
+  - `lastname` (string): User's last name.
+- `email` (string): User's email address.
+- `socketId` (string or null): User's socket ID if available.
+
+Responses:
+- `200 OK` — Profile retrieved successfully. Returns the authenticated user object.
+- `401 Unauthorized` — Invalid or missing token. Token is blacklisted or expired.
+- `500 Internal Server Error` — Unexpected server error.
+
+Example Responses:
+
+Success (200 OK):
+
+```json
+{
+  "_id": "60c72b2f9b1e8e5f6c8f9d7a",
+  "fullname": { "firstname": "Jane", "lastname": "Doe" },
+  "email": "jane.doe@example.com",
+  "socketId": null
+}
+```
+
+Unauthorized Error (401 Unauthorized):
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+Notes:
+- This endpoint requires authentication via the `authUser` middleware.
+- The token must be passed either in the `Authorization` header as a Bearer token or in a `token` cookie.
+- The password field is never included in the response.
+
+See implementation files:
+- [Backend/controllers/user.controller.js](Backend/controllers/user.controller.js)
+- [Backend/middlewares/auth.middleware.js](Backend/middlewares/auth.middleware.js)
+
+---
+
+## POST /users/logout
+
+Description:
+- Logout an authenticated user. Clears the authentication cookie, blacklists the JWT token, and invalidates the session.
+
+Request:
+- Method: `POST`
+- URL: `/users/logout`
+- Headers:
+  - `Authorization: Bearer <token>` (or cookie with `token`)
+
+### Example Response
+
+- `message` (string): Confirmation message.
+
+Responses:
+- `200 OK` — Logout successful. Token is blacklisted and user is logged out.
+- `401 Unauthorized` — Invalid or missing token. Token is already blacklisted or expired.
+- `500 Internal Server Error` — Unexpected server error.
+
+Example Responses:
+
+Success (200 OK):
+
+```json
+{
+  "message": "Logged out"
+}
+```
+
+Unauthorized Error (401 Unauthorized):
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+Notes:
+- This endpoint requires authentication via the `authUser` middleware.
+- The token is stored in the blacklist model to prevent reuse after logout.
+- The `token` cookie is cleared from the client's browser.
+- The token can be passed either in the `Authorization` header as a Bearer token or in a `token` cookie.
+- After logout, any requests using the blacklisted token will be rejected by the `authUser` middleware.
+
+See implementation files:
+- [Backend/controllers/user.controller.js](Backend/controllers/user.controller.js)
+- [Backend/models/blacklistToken.model.js](Backend/models/blacklistToken.model.js)
+- [Backend/middlewares/auth.middleware.js](Backend/middlewares/auth.middleware.js)
