@@ -287,87 +287,165 @@ See implementation files:
 ## POST /captains/register
 
 Description:
-- Register a new captain with vehicle details. Validates input, hashes the password, saves the captain, and returns a JWT token plus the created captain (password excluded).
+- Register a new captain with vehicle details. The API validates the payload, hashes the password, creates the captain record, and returns a JWT plus the created captain without the password field.
 
 Request:
 - Method: `POST`
 - URL: `/captains/register`
 - Content-Type: `application/json`
 
-Body (JSON):
-- `fullname` (object)
-  - `firstname` (string, required) — minimum 3 characters
-  - `lastname` (string, optional) — minimum 3 characters if provided
-- `email` (string, required) — must be a valid email
-- `password` (string, required) — minimum 6 characters
-- `vehicle` (object)
-  - `color` (string, required) — minimum 3 characters
-  - `plate` (string, required) — minimum 3 characters (vehicle license plate)
-  - `capacity` (integer, required) — minimum 1 (number of passengers)
-  - `vehicleType` (string, required) — one of: `"car"`, `"motorcycle"`, `"auto"`
+Request body example:
 
-Example Request Body:
-
-```json
+```jsonc
 {
-  "fullname": { "firstname": "John", "lastname": "Smith" },
+  // Required: object containing the captain's name information.
+  "fullname": {
+    // Required: minimum 3 characters.
+    "firstname": "John",
+    // Optional: minimum 3 characters if provided.
+    "lastname": "Smith"
+  },
+  // Required: must be a valid email address.
   "email": "john.smith@example.com",
+  // Required: minimum 6 characters.
   "password": "secret123",
+  // Required: vehicle details.
   "vehicle": {
+    // Required: minimum 3 characters.
     "color": "Black",
+    // Required: minimum 3 characters.
     "plate": "ABC-1234",
+    // Required: integer, must be >= 1.
     "capacity": 4,
+    // Required: one of "car", "motorcycle", or "auto".
     "vehicleType": "car"
   }
 }
 ```
 
-### Validation Rules
+Validation rules:
+- `email` must pass `isEmail()`
+- `fullname.firstname` must be at least 3 characters with `isLength({ min: 3 })`
+- `password` must be at least 6 characters with `isLength({ min: 6 })`
+- `vehicle.color` must be at least 3 characters
+- `vehicle.plate` must be at least 3 characters
+- `vehicle.capacity` must be an integer greater than or equal to 1
+- `vehicle.vehicleType` must be one of `"car"`, `"motorcycle"`, `"auto"`
 
-The following validation rules are enforced (as implemented in `routes/captain.routes.js`):
-- `email` — `isEmail()` — must be a valid email format
-- `fullname.firstname` — `isLength({ min: 3 })` — minimum 3 characters
-- `password` — `isLength({ min: 6 })` — minimum 6 characters
-- `vehicle.color` — `isLength({ min: 3 })` — minimum 3 characters
-- `vehicle.plate` — `isLength({ min: 3 })` — minimum 3 characters
-- `vehicle.capacity` — `isInt({ min: 1 })` — must be an integer >= 1
-- `vehicle.vehicleType` — `isIn(["car", "motorcycle", "auto"])` — must be one of the valid types
+Successful response example (201 Created):
 
-### Example Response
-
-- `token` (string): JWT Token (valid for 24 hours)
-- `captain` (object):
-  - `_id` (string): Captain's unique MongoDB ID
-  - `fullname` (object):
-    - `firstname` (string): Captain's first name
-    - `lastname` (string): Captain's last name
-  - `email` (string): Captain's email address
-  - `status` (string): Captain's status (`"active"` or `"inactive"`, default: `"inactive"`)
-  - `socketId` (string or null): Captain's socket ID for real-time communication
-  - `vehicle` (object):
-    - `color` (string): Vehicle color
-    - `plate` (string): Vehicle license plate
-    - `capacity` (integer): Number of passengers the vehicle can hold
-    - `vehicleType` (string): Type of vehicle (`"car"`, `"motorcycle"`, or `"auto"`)
-  - `location` (object):
-    - `lat` (string or null): Latitude coordinate
-    - `lng` (string or null): Longitude coordinate
-
-Responses:
-- `201 Created` — Registration successful. Returns JSON `{ token, captain }` where `token` is a JWT and `captain` is the created captain object (the `password` field is not returned).
-- `400 Bad Request` — Validation failed or email already exists. Returns `{ errors: [...] }` or `{ message: "..." }`.
-- `500 Internal Server Error` — Unexpected server error.
-
-Example Responses:
-
-Success (201 Created):
-
-```json
+```jsonc
 {
+  // JWT token used to authenticate future requests.
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  // Created captain object without the password field.
+  "captain": {
+    // MongoDB document ID.
+    "_id": "60c72b2f9b1e8e5f6c8f9d7b",
+    "fullname": {
+      "firstname": "John",
+      "lastname": "Smith"
+    },
+    "email": "john.smith@example.com",
+    // Default status is "inactive" until the captain goes online.
+    "status": "inactive",
+    "socketId": null,
+    "vehicle": {
+      "color": "Black",
+      "plate": "ABC-1234",
+      "capacity": 4,
+      "vehicleType": "car"
+    },
+    "location": {
+      "lat": null,
+      "lng": null
+    }
+  }
+}
+```
+
+Error response example (400 Bad Request):
+
+```jsonc
+{
+  // Express-validator errors array returned when validation fails.
+  "errors": [
+    {
+      "msg": "Invalid Email",
+      "param": "email",
+      "location": "body"
+    },
+    {
+      "msg": "Password must be at least 6 characters long",
+      "param": "password",
+      "location": "body"
+    },
+    {
+      "msg": "Invalid vehicle type",
+      "param": "vehicle.vehicleType",
+      "location": "body"
+    }
+  ]
+}
+```
+
+Duplicate email error example (400 Bad Request):
+
+```jsonc
+{
+  // Returned when a captain already exists with the same email.
+  "message": "Captain with this email already exists"
+}
+```
+
+Notes:
+- The password is hashed before saving.
+- A JWT is generated with `captain.generateAuthToken()`.
+- The password field is excluded from the returned captain object.
+- The captain starts with `status: "inactive"`.
+
+See implementation files:
+- [Backend/routes/captain.routes.js](Backend/routes/captain.routes.js)
+- [Backend/controllers/captain.controller.js](Backend/controllers/captain.controller.js)
+- [Backend/models/captain.model.js](Backend/models/captain.model.js)
+- [Backend/services/captain.service.js](Backend/services/captain.service.js)
+
+---
+
+## POST /captains/login
+
+Description:
+- Authenticate a captain using email and password. If the credentials are valid, the API returns a JWT and the authenticated captain object.
+
+Request:
+- Method: `POST`
+- URL: `/captains/login`
+- Content-Type: `application/json`
+
+Request body example:
+
+```jsonc
+{
+  // Required: valid email address.
+  "email": "john.smith@example.com",
+  // Required: minimum 6 characters.
+  "password": "secret123"
+}
+```
+
+Successful response example (200 OK):
+
+```jsonc
+{
+  // JWT token for future authenticated requests.
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  // Authenticated captain document, without the password field.
   "captain": {
     "_id": "60c72b2f9b1e8e5f6c8f9d7b",
-    "fullname": { "firstname": "John", "lastname": "Smith" },
+    "fullname": {
+      "firstname": "John",
+      "lastname": "Smith"
+    },
     "email": "john.smith@example.com",
     "status": "inactive",
     "socketId": null,
@@ -385,101 +463,113 @@ Success (201 Created):
 }
 ```
 
-Validation Error (400 Bad Request):
+Authentication error example (401 Unauthorized):
 
-```json
+```jsonc
+{
+  // Returned when the email does not exist or the password does not match.
+  "message": "Invalid email or password"
+}
+```
+
+Validation error example (400 Bad Request):
+
+```jsonc
 {
   "errors": [
-    { "msg": "Invalid Email", "param": "email", "location": "body" },
-    { "msg": "Password must be at least 6 characters long", "param": "password", "location": "body" },
-    { "msg": "Invalid vehicle type", "param": "vehicle.vehicleType", "location": "body" }
+    {
+      "msg": "Invalid Email",
+      "param": "email",
+      "location": "body"
+    },
+    {
+      "msg": "Password must be at least 6 characters long",
+      "param": "password",
+      "location": "body"
+    }
   ]
 }
 ```
-
-Duplicate Email Error (400 Bad Request):
-
-```json
-{
-  "message": "Captain with this email already exists"
-}
-```
-
-Notes:
-- Passwords are hashed using `bcrypt` via `captain.model.js` before storing (salt rounds: 10).
-- A JWT is generated with `captain.generateAuthToken()`; ensure `JWT_SECRET` is set in environment variables.
-- JWT tokens are valid for 24 hours by default.
-- The saved captain model excludes the `password` field from query results (`select: false`).
-- Captains start with an `"inactive"` status by default until they come online.
-- Email addresses are automatically converted to lowercase and must be unique in the database.
-- Location (`lat`, `lng`) is initialized as null and can be updated when the captain comes online.
-
-See implementation files:
-- [Backend/routes/captain.routes.js](Backend/routes/captain.routes.js)
-- [Backend/controllers/captain.controller.js](Backend/controllers/captain.controller.js)
-- [Backend/models/captain.model.js](Backend/models/captain.model.js)
-- [Backend/services/captain.service.js](Backend/services/captain.service.js)
-
----
-
-## POST /captains/login
-
-Description:
-- Authenticate a captain with email and password. Validates input, compares the provided password with the stored hashed password, and returns a JWT token plus the authenticated captain if credentials are valid.
-
-**Status**: Not yet implemented
-
-Planned Request:
-- Method: `POST`
-- URL: `/captains/login`
-- Content-Type: `application/json`
-
-Planned Body (JSON):
-- `email` (string, required) — must be a valid email
-- `password` (string, required) — minimum 6 characters
-
-Planned Response:
-- `200 OK` — Login successful. Returns JSON `{ token, captain }`
-- `400 Bad Request` — Validation failed
-- `401 Unauthorized` — Invalid email or password
-- `500 Internal Server Error` — Unexpected server error
 
 ---
 
 ## GET /captains/profile
 
 Description:
-- Retrieve the authenticated captain's profile. Requires a valid JWT token for authentication.
+- Fetch the authenticated captain profile using a valid JWT token.
 
-**Status**: Not yet implemented
-
-Planned Request:
+Request:
 - Method: `GET`
 - URL: `/captains/profile`
 - Headers:
-  - `Authorization: Bearer <token>` (or cookie with `token`)
+  - `Authorization: Bearer <token>`
+  - or a cookie named `token`
 
-Planned Response:
-- `200 OK` — Profile retrieved successfully. Returns the authenticated captain object.
-- `401 Unauthorized` — Invalid or missing token.
-- `500 Internal Server Error` — Unexpected server error.
+Successful response example (200 OK):
+
+```jsonc
+{
+  // Authenticated captain document.
+  "captain": {
+    "_id": "60c72b2f9b1e8e5f6c8f9d7b",
+    "fullname": {
+      "firstname": "John",
+      "lastname": "Smith"
+    },
+    "email": "john.smith@example.com",
+    "status": "inactive",
+    "socketId": null,
+    "vehicle": {
+      "color": "Black",
+      "plate": "ABC-1234",
+      "capacity": 4,
+      "vehicleType": "car"
+    },
+    "location": {
+      "lat": null,
+      "lng": null
+    }
+  }
+}
+```
+
+Unauthorized response example (401 Unauthorized):
+
+```jsonc
+{
+  // Returned when the token is missing, expired, or invalid.
+  "message": "Unauthorized"
+}
+```
 
 ---
 
 ## POST /captains/logout
 
 Description:
-- Logout an authenticated captain. Clears the authentication cookie, blacklists the JWT token, and invalidates the session.
+- Logout the authenticated captain. The server clears the token cookie and blacklists the JWT so it cannot be reused.
 
-**Status**: Not yet implemented
-
-Planned Request:
+Request:
 - Method: `POST`
 - URL: `/captains/logout`
 - Headers:
-  - `Authorization: Bearer <token>` (or cookie with `token`)
+  - `Authorization: Bearer <token>`
+  - or a cookie named `token`
 
-Planned Response:
-- `200 OK` — Logout successful. Token is blacklisted and captain is logged out.
-- `401 Unauthorized` — Invalid or missing token.
-- `500 Internal Server Error` — Unexpected server error.
+Successful response example (200 OK):
+
+```jsonc
+{
+  // Confirmation that the captain has been logged out.
+  "message": "Logout successfully"
+}
+```
+
+Unauthorized response example (401 Unauthorized):
+
+```jsonc
+{
+  // Returned when no valid token is provided.
+  "message": "Unauthorized"
+}
+```
