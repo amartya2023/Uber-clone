@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { UserDataContext } from "../context/UserContext";
 
 const UserSignup = () => {
   const [email, setEmail] = useState("");
@@ -8,18 +10,34 @@ const UserSignup = () => {
   const [lastName, setLastname] = useState("");
   const [userData, setUserData] = useState({});
 
-  const submitHandler = (e) => {
-    e.preventDefault();
+  const navigate = useNavigate();
 
-    setUserData({
-      fullName: {
-        firstName: firstName,
-        lastName: lastName,
+  const { user, setUser } = React.useContext(UserDataContext);
+
+  const submitHandler = async (e) => {
+    e.preventDefault();
+    const newUser = {
+      fullname: {
+        firstname: firstName,
+        lastname: lastName,
       },
       email: email,
       password: password,
-    });
-    console.log(userData);
+    };
+
+    const response = await axios.post(
+      `${import.meta.env.VITE_BASE_URL}/users/register`,
+      newUser,
+    );
+
+    if (response.status === 201) {
+      const data = response.data;
+      // setUserData(response.data);
+      localStorage.setItem("token", data.token);
+      setUser(data.user);
+      navigate("/home");
+    }
+
     setEmail("");
     setFirstname("");
     setLastname("");
@@ -96,7 +114,9 @@ const UserSignup = () => {
       </div>
       <div>
         <p className="text-[10px] leading-tight">
-          This site is protected by reCAPTCHA and the <span className="underline">Google Policy</span> and <span className="underline">Terms of Service</span> apply
+          This site is protected by reCAPTCHA and the{" "}
+          <span className="underline">Google Policy</span> and{" "}
+          <span className="underline">Terms of Service</span> apply
         </p>
       </div>
     </div>
